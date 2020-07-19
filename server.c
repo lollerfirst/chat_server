@@ -17,7 +17,7 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <signal.h>
-#include "conn_queue.h"
+#include "queue.h"
 #define PORT 1800
 #define MAX_CLIENTS 20
 #define MAX_LINE 1024
