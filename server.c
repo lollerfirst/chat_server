@@ -28,10 +28,14 @@ pthread_cond_t cond_var;
 pthread_t pool[MAX_CLIENTS];
 pthread_t mex_thread;
 pthread_cond_t mex_cond_var;
-Elem last_cli;
 Elem connected_clients[MAX_CLIENTS];
 size_t conn_cli_len;
+
 char message[MAX_LINE+1];
+Elem last_cli;
+
+void vector_push(void* vector, const void* element, size_t vector_len);    //to implement
+void vector_remove(void* vector, const void* element, size_t vector_len);  //to implement
 
 //Close everything on SIGINT signal
 void quit_handler(int c){
@@ -60,7 +64,37 @@ void quit_handler(int c){
 }
 
 void* conn_handler(void* arg){
+	Elem el;
+	char buffer[MAX_LINE+1];  
 	
+	while(1){
+		bzero(&el, sizeof(Elem));
+		bzero(buffer, sizeof(buffer));
+		pthread_mutex_lock(&mutex);
+		
+		//Check if there is an element on the queue. If there is not wait for the signal
+		if(dequeue(&el) < 0){
+			pthread_cond_wait(&cond_var, &mutex);
+			dequeue(&el);	
+		}
+		vector_push(connected_clients, &el, &conn_cli_len);
+		pthread_mutex_unlock(&mutex);
+		
+		while(read(el.cli_fd, buffer, sizeof(buffer)) > 0){
+			pthread_mutex_lock(&mutex);
+			last_cli = el;
+			memcpy(message, buffer, sizeof(buffer));
+			pthread_mutex_unlock(&mutex);
+			
+			pthread_cond_signal(&mex_cond_var);
+		} 
+		
+		//Client has disconnected or there has been an error.
+		close(el.cli_fd);
+		pthread_mutex_lock(&mutex);
+		vector_remove(connected_clients, el, &conn_cli_len);
+		pthread_mutex_unlock(&mutex);
+	}
 }
 
 //Once notified that there is a new message, it takes it and re-broadcasts it to all clients.
@@ -144,8 +178,8 @@ int main(int argc, char** argv){
 	//Wait for connections and enqueue them
 	while(1){
 		static struct sockaddr tmp;
-		static size_t cli_addr_len = sizeof(struct sockaddr);
 		static Elem el;
+		size_t cli_addr_len = sizeof(struct sockaddr);
 		static int fd;
 		if((fd = accept(listen_fd, &tmp, &cli_addr_len, 0)) < 0){
 			perror(strerror(errno));
@@ -158,6 +192,9 @@ int main(int argc, char** argv){
 		enqueue(el);
 		pthread_mutex_unlock(&mutex);
 		phtread_cond_signal(&cond_var); //signal that a connection has just been appeneded to the queue;
+		
+		bzero(&tmp, sizeof(struct sockaddr));
+		bzero(&el, sizeof(Elem));
 	}
 	
 	return 0;
