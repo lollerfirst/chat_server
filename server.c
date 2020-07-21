@@ -18,6 +18,7 @@
 #include <string.h>
 #include <signal.h>
 #include "queue.h"
+#include "vector.h"
 #define PORT 1800
 #define MAX_CLIENTS 20
 #define MAX_LINE 1024
@@ -33,9 +34,6 @@ size_t conn_cli_len;
 
 char message[MAX_LINE+1];
 Elem last_cli;
-
-void vector_push(void* vector, const void* element, size_t vector_len);    //to implement
-void vector_remove(void* vector, const void* element, size_t vector_len);  //to implement
 
 //Close everything on SIGINT signal
 void quit_handler(int c){
@@ -77,7 +75,7 @@ void* conn_handler(void* arg){
 			pthread_cond_wait(&cond_var, &mutex);
 			dequeue(&el);	
 		}
-		vector_push(connected_clients, &el, &conn_cli_len);
+		vector_push(connected_clients, &el, &conn_cli_len, sizeof(Elem));
 		pthread_mutex_unlock(&mutex);
 		
 		while(read(el.cli_fd, buffer, sizeof(buffer)) > 0){
@@ -92,7 +90,7 @@ void* conn_handler(void* arg){
 		//Client has disconnected or there has been an error.
 		close(el.cli_fd);
 		pthread_mutex_lock(&mutex);
-		vector_remove(connected_clients, el, &conn_cli_len);
+		vector_remove(connected_clients, &el, &conn_cli_len, sizeof(Elem));
 		pthread_mutex_unlock(&mutex);
 	}
 }
