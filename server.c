@@ -63,11 +63,13 @@ void quit_handler(int c){
 
 void* conn_handler(void* arg){
 	Elem el;
-	char buffer[MAX_LINE+1];  
+	char buffer[MAX_LINE+1];
+	char addr[INET6_ADDRSTRLEN];
 	
 	while(1){
 		bzero(&el, sizeof(Elem));
 		bzero(buffer, sizeof(buffer));
+		bzero(addr, sizeof(addr));
 		pthread_mutex_lock(&mutex);
 		
 		//Check if there is an element on the queue. If there is not wait for the signal
@@ -76,6 +78,8 @@ void* conn_handler(void* arg){
 			dequeue(&el);	
 		}
 		vector_push(connected_clients, &el, &conn_cli_len, sizeof(Elem));
+		inet_ntop(AF_INET6, &el.cli_addr.sin6_addr.in6_addr.s6_addr, addr, INET6_ADDRSTRLEN);
+		printf("[Thread %d] accepted 1 connection: %s\n", (int) pthread_self(), addr);
 		pthread_mutex_unlock(&mutex);
 		
 		while(read(el.cli_fd, buffer, sizeof(buffer)) > 0){
@@ -92,6 +96,8 @@ void* conn_handler(void* arg){
 		pthread_mutex_lock(&mutex);
 		vector_remove(connected_clients, &el, &conn_cli_len, sizeof(Elem));
 		pthread_mutex_unlock(&mutex);
+		
+		return NULL;
 	}
 }
 
@@ -105,7 +111,7 @@ void* mex_handler(void* arg){
 	while(1){
 		pthread_mutex_lock(&mutex);
 		pthread_cond_wait(&mex_cond_var, &mutex);
-		inet_ntop(AF_INET6, (struct in6_addr*) &last_cli.cli_addr.sin6_addr.in6_addr, buffer, buf_len); 
+		inet_ntop(AF_INET6, &last_cli.cli_addr.sin6_addr.in6_addr, buffer, buf_len); 
 		strcat(buffer, ": ");
 		strcat(buffer, message);
 		strcat(buffer, '\0');
@@ -116,6 +122,8 @@ void* mex_handler(void* arg){
 		
 		pthread_mutex_unlock(&mutex);
 		bzero(buffer, sizeof(buffer));
+		
+		return NULL;
 	}
 }
 
@@ -187,6 +195,7 @@ int main(int argc, char** argv){
 		el.cli_fd = fd;
 		
 		pthread_mutex_lock(&mutex);
+		printf("1 connection queued\n");
 		enqueue(el);
 		pthread_mutex_unlock(&mutex);
 		phtread_cond_signal(&cond_var); //signal that a connection has just been appeneded to the queue;
