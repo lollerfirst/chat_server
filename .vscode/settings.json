@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "random": "c",
+        "limits": "c",
+        "algorithm": "c",
+        "cerrno": "c",
+        "system_error": "c",
+        "errno.h": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "utility": "c",
+        "deque": "c",
+        "string": "c",
+        "unordered_map": "c",
+        "vector": "c"
+    }
+}
