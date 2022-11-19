@@ -1,0 +1,4 @@
+/home/lollerfirst/dev/c/chat_server/build/CMakeFiles/rebuild_cache.dir
+/home/lollerfirst/dev/c/chat_server/build/CMakeFiles/edit_cache.dir
+/home/lollerfirst/dev/c/chat_server/build/CMakeFiles/chat.dir
+/home/lollerfirst/dev/c/chat_server/build/CMakeFiles/chatserver.dir

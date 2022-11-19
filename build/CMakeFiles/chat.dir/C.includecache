@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/lollerfirst/dev/c/chat_server/client.c
+stdio.h
+-
+stdlib.h
+-
+errno.h
+-
+unistd.h
+-
+sys/socket.h
+-
+sys/types.h
+-
+netinet/in.h
+-
+arpa/inet.h
+-
+string.h
+-
+errno.h
+-
+pthread.h
+-
+
