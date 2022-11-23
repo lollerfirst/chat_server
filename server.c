@@ -10,14 +10,25 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <signal.h>
-#include <bool.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <assert.h>
 
 #define PORT 1800
+#define LOOPBACK "::1"
 #define MAX_CLIENTS 20
 #define MAX_LINE 512
 #define SERVER_BACKLOG 100
+#define CLIENT_DGRAM_SIZE 1024
+
+#define ERROR_RETHROW(__CALL, __STATEMENTS...) ({	\
+	int __err_code;									\
+	if ((__err_code = __CALL) != 0) 				\
+	{ 												\
+		{__STATEMENTS;} 							\
+		return __err_code; 							\
+	} 												\
+})
 
 //TYPE DEFINITIONS
 
@@ -32,25 +43,33 @@ typedef struct __Client{
 //GLOBAL VARIABLES
 
 static Client clients[MAX_CLIENTS];
+int listen_fd;
 
 void quit_handler(int c)
 {
-	
+	int i;
+	for (i=0; i<MAX_CLIENTS; ++i){
+		close(clients[i].cli_fd);
+	}
+
+	close(listen_fd);
 }
 
-int broadcast(const char *message, size_t size)
+void thread_quit_handler(int c){
+	return;
+}
+
+int broadcast(const char *message, size_t size, size_t current_thread_id)
 {
 	int i;
 	for (i=0; i<MAX_CLIENTS; ++i){
 		pthread_mutex_lock(&clients[i].lock);
 
-		if (clients[i].busy)
+		if (i != current_thread_id && clients[i].busy)
 		{
 			if (write(clients[i].cli_fd, message, size) < 0)
 			{
 				perror(strerror(errno));
-				pthread_mutex_unlock(&clients[i].lock);
-				return -1;
 			}
 
 		}
@@ -69,7 +88,7 @@ void* conn_routine(void* arg)
 
 	// Install the signal handlers
 	struct sigaction sigact = {0};
-	sigact.sa_handler = quit_handler;
+	sigact.sa_handler = thread_quit_handler;
 	sigaction(SIGUSR1, &sigact, NULL);
 	sigaction(SIGINT, &sigact, NULL);
 
@@ -84,17 +103,28 @@ void* conn_routine(void* arg)
 	while ((bytes = read(clients[iterator].cli_fd, buffer, MAX_LINE)) > 0)
 	{
 		//Append sender address to message
-		char message[1024] = {0};
+		char message[CLIENT_DGRAM_SIZE];
+		bzero(message, sizeof(message));
+
 		sprintf(message, "<%s>: %s", from, buffer);
 
 		//Broadcast message to other clients
-		(void) broadcast(message, sizeof(message));
+		(void) broadcast(message, strlen(message), iterator);
+		bzero(buffer, sizeof(buffer));
 	}
 
 	if (bytes == -1)
 	{
 		perror(strerror(errno));
 	}
+
+	char message[CLIENT_DGRAM_SIZE];
+	bzero(message, sizeof(message));
+
+	sprintf(message, "[-] Client Disconnected: <%s>", from);
+	(void) broadcast(message, strlen(message), iterator);
+
+	fprintf(stdout, "%s\n", message);
 
 	// Other threads may be trying to write to cli_fd
 	pthread_mutex_lock(&clients[iterator].lock);
@@ -103,6 +133,7 @@ void* conn_routine(void* arg)
 	close(clients[iterator].cli_fd);
 
 	pthread_mutex_unlock(&clients[iterator].lock);
+
 }
 
 int main()
@@ -110,7 +141,6 @@ int main()
 	struct sockaddr_in6 address;
 	size_t addrlen = sizeof(address);
 	size_t iterator = 0;
-	int listen_fd;
 
 	// INITIALIZING STUFF
 	bzero(&address, sizeof(struct sockaddr_in6));
@@ -118,36 +148,47 @@ int main()
 
 	size_t k;
 	for (k=0; k<MAX_CLIENTS; ++k){
-		clients[k].lock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_mutex_init(&clients[k].lock, NULL);
 	}
 
 	// SET UP CONNECTION TYPE IPv6, HOST IP, PORT
 	address.sin6_family = AF_INET6;
-	address.sin6_addr.in6_addr.s6_addr = htonl(INADDRESS_ANY);
+	int err;
+	if ((err = inet_pton(AF_INET6, LOOPBACK, &address.sin6_addr.s6_addr)) != 1){
+		perror(strerror(errno));
+		fprintf(stderr, "LINE: %d\n", __LINE__);
+		return err;
+	}
 	address.sin6_port = htons(PORT);
 
 	// CREATE THE SOCKET
 	if ((listen_fd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
 	{
 		perror(strerror(errno));
+		fprintf(stderr, "LINE: %d\n", __LINE__);
 		exit(errno);
 	}
 
 	// Bind the socket
-	if (bind(listen_fd, (struct sockaddr *)&address, addrlen) == -1)
-	{
-		perror(strerror(errno));
-		close(listen_fd);
-		exit(errno);
-	}
+	ERROR_RETHROW(bind(listen_fd, (struct sockaddr *)&address, addrlen),
+
+		perror(strerror(errno)),
+		fprintf(stderr, "LINE: %d\n", __LINE__),
+		close(listen_fd)
+	);
 
 	// Mark the socket as passive
-	if (listen(listen_fd, SERVER_BACKLOG) == -1)
-	{
-		perror(strerror(errno));
-		close(listen_fd);
-		exit(errno);
-	}
+	ERROR_RETHROW(listen(listen_fd, SERVER_BACKLOG),
+	
+		perror(strerror(errno)),
+		close(listen_fd),
+		fprintf(stderr, "LINE: %d\n", __LINE__),
+		exit(errno)
+	);
+
+	//Install signal handler
+	struct sigaction sigact = {.sa_handler = quit_handler};
+	sigaction(SIGINT, &sigact, NULL);
 
 	// Listen for and enqueue connections
 	while (1)
@@ -161,6 +202,7 @@ int main()
 			perror(strerror(errno));
 			kill(0, SIGUSR1);
 			close(listen_fd);
+			fprintf(stderr, "LINE: %d\n", __LINE__);
 
 			exit(errno);
 		}
@@ -185,10 +227,20 @@ int main()
 			{
 				clients[iterator].busy = false;
 				perror(strerror(errno));
+				fprintf(stderr, "LINE: %d\n", __LINE__);
 				close(cli_fd);
 			}
 
 			pthread_mutex_unlock(&clients[iterator].lock);
+
+			char from[64];
+			inet_ntop(AF_INET6, &clients[iterator].cli_addr, from, sizeof(from));
+			char message[MAX_LINE] = {0};
+			
+			sprintf(message, "[+] Client Connected: <%s>", from);
+			(void) broadcast(message, strlen(message), MAX_CLIENTS);
+			
+			fprintf(stdout, "%s\n", message);
 		}
 		else
 		{
