@@ -61,7 +61,7 @@ void thread_quit_handler(int c){
 
 int broadcast(const char *message, size_t size, size_t current_thread_id)
 {
-	int i;
+	size_t i;
 	for (i=0; i<MAX_CLIENTS; ++i){
 		pthread_mutex_lock(&clients[i].lock);
 
@@ -76,6 +76,8 @@ int broadcast(const char *message, size_t size, size_t current_thread_id)
 
 		pthread_mutex_unlock(&clients[i].lock);
 	}
+
+	fprintf(stdout, "%s\n", message);
 
 	return 0;
 }
@@ -240,8 +242,7 @@ int main()
 			
 			sprintf(message, "[+] Client Connected: <%s>", from);
 			(void) broadcast(message, strlen(message), MAX_CLIENTS);
-			
-			fprintf(stdout, "%s\n", message);
+
 		}
 		else
 		{

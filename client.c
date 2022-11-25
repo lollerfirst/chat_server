@@ -24,7 +24,6 @@
 })
 
 pthread_t listen_thread;
-pthread_mutex_t mutex;
 int socket_fd;
 
 void* listen_routine(void* arg){
@@ -32,15 +31,13 @@ void* listen_routine(void* arg){
 
 	while(read(socket_fd, buffer, MAX_LINE) > 0){
 
-		pthread_mutex_lock(&mutex);
-		fprintf(stdout, "%s\n", buffer);
-		pthread_mutex_unlock(&mutex);
+		fprintf(stdout, "\n%s\n", buffer);
 
 		bzero(buffer, sizeof(buffer));
 		
 	}
 
-	fprintf(stdout, "[SERVER DISCONNECTED]\n");
+	fprintf(stdout, "\n[SERVER DISCONNECTED]\n");
 	return NULL;
 }
 
@@ -83,8 +80,6 @@ int main(int argc, char** argv){
 		close(socket_fd)
 	);
 
-	pthread_mutex_init(&mutex, NULL);
-
 	ERROR_RETHROW(
 		pthread_create(&listen_thread, NULL, &listen_routine, NULL),
 		perror(strerror(errno)),
@@ -92,9 +87,7 @@ int main(int argc, char** argv){
 		close(socket_fd)
 	);
 
-	pthread_mutex_lock(&mutex);
-	printf("Successfully Connected!\n");
-	pthread_mutex_unlock(&mutex);
+	printf("[+] Successfully Connected!\n");
 
 	char* buffer;
 	size_t buffer_len = MAX_LINE;
@@ -107,7 +100,7 @@ int main(int argc, char** argv){
 
 
 	while(1){
-		
+
 		if (getline(&buffer, &buffer_len, stdin) == -1){
 			perror(strerror(errno));
 			free(buffer);
