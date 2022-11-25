@@ -126,8 +126,6 @@ void* conn_routine(void* arg)
 	sprintf(message, "[-] Client Disconnected: <%s>", from);
 	(void) broadcast(message, strlen(message), iterator);
 
-	fprintf(stdout, "%s\n", message);
-
 	// Other threads may be trying to write to cli_fd
 	pthread_mutex_lock(&clients[iterator].lock);
 
