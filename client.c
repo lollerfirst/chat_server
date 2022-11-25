@@ -51,40 +51,33 @@ int main(int argc, char** argv){
 		return -1;
 	}
 
-	char remote_server[256] = {0};
-	char remote_port[32] = {0};
-
-	// input safety
-	memcpy(remote_server, argv[1], sizeof(remote_server)-1);
-	memcpy(remote_port, argv[2], sizeof(remote_port)-1);
-
-	struct sockaddr_in6 address;
-	bzero(&address, sizeof(struct sockaddr_in6));
+	struct sockaddr_in address;
+	bzero(&address, sizeof(struct sockaddr_in));
 	
-	address.sin6_family = AF_INET6;
-	if (inet_pton(AF_INET6, remote_server, &address.sin6_addr.s6_addr) != 1){
+	address.sin_family = AF_INET;
+	if (inet_pton(AF_INET, argv[1], &address.sin_addr) != 1){
 		perror(strerror(errno));
 		fprintf(stderr, "LINE: %d", __LINE__);
 		return -1;
 	};
 	
 	short port_tmp;
-	if ((port_tmp = (short) atoi(remote_port)) == 0){
+	if ((port_tmp = (short) atoi(argv[2])) == 0){
 		perror(strerror(errno));
 		fprintf(stderr, "LINE: %d", __LINE__);
 		return -1;
 	}
 	
-	address.sin6_port = htons(port_tmp);
+	address.sin_port = htons(port_tmp);
 	
-	if ((socket_fd = socket(AF_INET6, SOCK_STREAM, 0)) == -1){
+	if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
 		perror(strerror(errno));
 		fprintf(stderr, "LINE: %d", __LINE__);
 		return -1;
 	}
 	
 	ERROR_RETHROW(
-		connect(socket_fd, (struct sockaddr*) &address, sizeof(struct sockaddr_in6)),
+		connect(socket_fd, (struct sockaddr*) &address, sizeof(struct sockaddr_in)),
 		perror(strerror(errno)),
 		fprintf(stderr, "LINE: %d", __LINE__),
 		close(socket_fd)

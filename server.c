@@ -15,7 +15,7 @@
 #include <assert.h>
 
 #define PORT 1800
-#define LOOPBACK "::1"
+#define LOOPBACK "0.0.0.0"
 #define MAX_CLIENTS 20
 #define MAX_LINE 512
 #define SERVER_BACKLOG 100
@@ -33,7 +33,7 @@
 //TYPE DEFINITIONS
 
 typedef struct __Client{
-	struct sockaddr_in6 cli_addr;
+	struct sockaddr_in cli_addr;
 	int cli_fd;
 	bool busy;
 	pthread_t thread;
@@ -97,7 +97,7 @@ void* conn_routine(void* arg)
 	ssize_t bytes;
 	char buffer[MAX_LINE + 1] = {0};
 	char from[64] = {0};
-	inet_ntop(AF_INET6, &clients[iterator].cli_addr, from, sizeof(from));
+	inet_ntop(AF_INET, &clients[iterator].cli_addr.sin_addr, from, sizeof(from));
 
 	// only this thread can READ from cli_fd
 	while ((bytes = read(clients[iterator].cli_fd, buffer, MAX_LINE)) > 0)
@@ -138,12 +138,12 @@ void* conn_routine(void* arg)
 
 int main()
 {
-	struct sockaddr_in6 address;
+	struct sockaddr_in address;
 	size_t addrlen = sizeof(address);
 	size_t iterator = 0;
 
 	// INITIALIZING STUFF
-	bzero(&address, sizeof(struct sockaddr_in6));
+	bzero(&address, sizeof(struct sockaddr_in));
 	bzero(clients, sizeof(clients));
 
 	size_t k;
@@ -152,17 +152,17 @@ int main()
 	}
 
 	// SET UP CONNECTION TYPE IPv6, HOST IP, PORT
-	address.sin6_family = AF_INET6;
+	address.sin_family = AF_INET;
 	int err;
-	if ((err = inet_pton(AF_INET6, LOOPBACK, &address.sin6_addr.s6_addr)) != 1){
+	if ((err = inet_pton(AF_INET, LOOPBACK, &address.sin_addr)) != 1){
 		perror(strerror(errno));
 		fprintf(stderr, "LINE: %d\n", __LINE__);
 		return err;
 	}
-	address.sin6_port = htons(PORT);
+	address.sin_port = htons(PORT);
 
 	// CREATE THE SOCKET
-	if ((listen_fd = socket(AF_INET6, SOCK_STREAM, 0)) == -1)
+	if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 	{
 		perror(strerror(errno));
 		fprintf(stderr, "LINE: %d\n", __LINE__);
@@ -193,8 +193,9 @@ int main()
 	// Listen for and enqueue connections
 	while (1)
 	{
-		struct sockaddr_in6 cli_addr = {0};
-		socklen_t addrlen = sizeof(struct sockaddr_in6);
+		struct sockaddr_in cli_addr;
+		bzero(&cli_addr, sizeof(struct sockaddr_in));
+		socklen_t addrlen = sizeof(struct sockaddr_in);
 
 		int cli_fd;
 		if ((cli_fd = accept(listen_fd, (struct sockaddr *)&cli_addr, &addrlen)) == -1)
@@ -234,7 +235,7 @@ int main()
 			pthread_mutex_unlock(&clients[iterator].lock);
 
 			char from[64];
-			inet_ntop(AF_INET6, &clients[iterator].cli_addr, from, sizeof(from));
+			inet_ntop(AF_INET, &clients[iterator].cli_addr.sin_addr, from, sizeof(from));
 			char message[MAX_LINE] = {0};
 			
 			sprintf(message, "[+] Client Connected: <%s>", from);
